@@ -1,0 +1,99 @@
+---
+title: "Apply function family"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+### By SYO
+
+## Apply function family
+
+Apply functions replace for loops. 
+
+The functions apply a function to each element of an object and returns the result from the function in the structure of a vector or a list. 
+
+## 3 apply functions
+
+  * apply(Object, Margin, Function): applied to matrix objects, returns a vector
+  * lapply(Object, Function): v, m, l, df object, returns a list
+  * sapply(Object, Function): v, m, l, df object, returns a vector
+
+apply functions create a loop and and apply function in the parameter to each element of Object in the parameter list iteratively in the loop.
+
+Margin is the direction of the iteration. 
+  1:iterates on each row, 
+  2:iterates on each column.
+
+apply() is applied to matrix (array) objects. 
+It can not be used to vector objects. If apply() is used with a data frame, the data frame is first casted into a matrix before applying the function to the object. 
+
+If lapply() and sapply() are applied a vector or a matrix, The function is applied to each element. If they are applied to a list or a data frame, the function is applied to  each element of the list or the data frame.
+
+The difference of two function is that lapply() returns a list while sapply() tries to returns the result in a simplfied form as much as possilbe such as a vector.  
+
+## Other apply functions
+
+* vapply: similar to sapply, set output format 
+* tapply: groups
+* mapply: multiple objects
+
+## Examples
+
+Let's try all three of them. 
+
+We will apply typeof function to titanic data to query the type of each column. 
+
+```{r}
+# Install "readxl" package if you don't have the package installed in your system. 
+
+# options(repos = c(CRAN = "http://cran.rstudio.com")) # set a mirror site
+# install.packages("readxl") 
+
+library(readxl)
+t1 <- read_excel(path="./Data/titanic3.xls", sheet ="titanic3")
+str(t1)
+```
+
+str() shows the type of each column.
+Now, we will use apply function to data frame. 
+
+```{r}
+apply(t1, 2, typeof) # returns a vector
+lapply(t1, typeof) # returns a list
+sapply(t1, typeof) # returns a vector
+```
+
+We got different results from each apply function.
+
+1. apply first casts the object into a matrix. Therefore, the types of all elements are coerced into a same type. Then, the typeof function is iterated on each column since the Margin(direction) parameter is 2.  It returns a vector as a result.
+
+2. lapply is used to apply typeof over the elements of a list iteratively. It returns a list as a result.
+
+3. sapply works in the same way as lapply. But, it will try to simplify the result as much as possible and returns a vector as a result.
+
+In our case, we need to use lapply or sapply. apply gives the result that all columns are character type since the whole data frame is casted into a matrix and the types of the all the elements are coerced into character type. Thus, it will result all the columns as character types.
+
+## apply hides for loops
+ 
+We can write function myapply which acts like apply() as in the following. Let's rewrite the function so that it can work for Margin = 1.
+
+```{r}
+
+m1 <- matrix(1:24, nrow = 3, ncol = 8)
+apply(m1, 2, sum)
+
+myapply <- function(Obj, Margin, Func, ...) { 
+  # ...(dot artument) represents any number of  optional arguments of Fun
+  # This function works only for Margin = 2
+  # Add more codes for Margin = 1
+  result <- vector()
+  for(i in 1:ncol(Obj))
+    result <- c(result, Func(Obj[ ,i], ...))
+  return(result)
+  }
+
+myapply(m1, 2, sum)
+```
+

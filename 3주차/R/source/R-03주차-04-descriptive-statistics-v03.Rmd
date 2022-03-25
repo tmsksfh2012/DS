@@ -1,0 +1,108 @@
+---
+title: "Descriptive statistics"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+Summarized by SY Ohn
+
+## References: 
+1.https://www.statsandr.com/blog/descriptive-statistics-in-r/#line-plot
+2.https://www.statmethods.net/stats/descriptives.html#:~:text=R%20provides%20a%20wide%20range,with%20a%20specified%20summary%20statistic.&text=Possible%20functions%20used%20in%20sapply,median%2C%20range%2C%20and%20quantile.
+
+# Descriptive statistics
+
+1. Base package
+2. Using Hmisc , pastecs, psych package
+
+## Using Base package  
+
+Use sapply with summary statistics 
+1. numeric variables: mean, sd, var, min, max, range, and quatiles 
+2. nominal variables: contingency table, mode
+
+We are using mtcars data set
+
+```{r}
+library(dplyr)
+data("mtcars")
+mt1 <- mtcars %>% as_tibble # pipe
+# convert into tibble
+
+mt1$cyl <- factor(mt1$cyl)
+mt1$vs <- factor(mt1$vs)
+mt1$am <- factor(mt1$am) 
+mt1$gear <- factor(mt1$gear) 
+mt1$carb <- factor(mt1$carb) 
+
+class(mt1)
+anyNA(mt1)
+mt1
+```
+
+### Numeric variables 
+
+```{r}
+mt1_num <- mt1[,sapply(mt1, is.numeric)]
+mt1_num
+sapply(mt1_num, mean, na.rm = TRUE)
+
+# repeat for  mean, sd, var, min, max, range, and quatiles for numeric variables
+```
+
+### Nominal variables 
+
+table, mode-최빈값
+
+```{r}
+mt1_nom <- mt1[,sapply(mt1, is.factor)]
+
+mt1_table <- sapply(mt1_nom, table) # contingency table
+mt1_table
+max_row_index <- sapply(mt1_table, which.max)
+max_row_index
+# mode values
+mapply(function(x,y){return(rownames(x)[y])}, mt1_table, max_row_index) 
+
+```
+
+### summary()
+quartiles: mean,median,25th and 75th quartiles,min,max
+
+```{r}
+summary(mt1)
+```
+
+## Using the psych package
+
+```{r}
+library(psych)
+describe(mtcars)
+```
+
+## Using the Hmisc package
+
+```{r}
+library(Hmisc)
+describe(mt1)
+```
+
+## Using the pastecs package
+
+```{r}
+library(pastecs)
+stat.desc(mt1)
+```
+
+## Summary Statistics by Group
+
+A simple way of generating summary statistics by grouping variable is available in the psych package.
+
+```{r}
+library(psych)
+describeBy(mtcars$mpg, group = mtcars$vs)
+```
+
+### - End -

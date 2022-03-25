@@ -1,0 +1,57 @@
+---
+title: "연습"
+output:
+  html_document:
+    df_print: paged
+---
+
+By SYO
+
+###  vector, factor, matrix, list, dataframe
+
+```{r}
+# vector
+v1 <- c(1, 2, 3)
+v1
+typeof(v1) # structure, vector, list, ...
+mode(v1) # type, numeric, char, ... 
+
+v2 <- c('a', 'b', 'abc')
+v2
+typeof(v2)
+mode(v2)
+
+#factor
+f1 <- factor(1, 2, 3) # Error
+help(factor)
+
+f1 <- factor(c(1, 2, 3))
+f1
+typeof(f1)
+mode(f1)
+
+m1 <- matrix(1:24, nrow = 3, ncol = 8)
+typeof(m1)
+mode(m1)
+
+l1 <- list(1, 2, 3) # components as parameters 
+l1
+typeof(l1)
+mode(l1)
+
+l2 <- list(c(1, 2, 3))
+l2
+l3 <- list(1, c(1, 2, 3), list("a", "b", "c"))
+l3
+
+d1 <- data.frame(numbers = c(1, 2, 3), alpha = c("a", "b", "c"), row.names = c(1, 2, 3))
+d1
+typeof(d1)
+mode(d1)
+
+d1$alpha
+mode(d1$alpha)
+d1[2]
+mode(d1[2])
+d1[[2]]
+mode(d1[[2]])

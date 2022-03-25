@@ -1,0 +1,250 @@
+---
+title: "dplyr package"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+
+## dplyr package 
+
+Summarized by SY Ohn
+
+## References
+
+-> https://cran.r-project.org/web/packages/dplyr/vignettes/dplyr.html
+-> https://dplyr.tidyverse.org/index.html
+
+dplyr is a powerful R-package to preprocessing data written by H. Wickham. 
+
+## functions in dplyr package: 
+### Handling rows
+filter(): Filter rows with condition = {base} subset
+slice(): Filter rows with position = {base} subset 
+arrange(): Re-order or arrange rows = {base} order
+
+### Handling columns
+select(): Select columns ={base} subset  
+
+- select(df, starts_with()): Select columns that start with a prefix 
+- select(df, ends_with()): Select columns that end with a prefix  
+- 
+  select(df, contains()): Select columns that contain a character string
+- 
+  select(df, matchs()): Select columns that match a regular expression 
+- select(df, one_of()): Select columns that are from a group of names 
+- select(df, num_range()): Select columns from num_range a to n with a prefix
+
+rename(): Rename column name = {reshape} rename  
+
+distinct(): Extract distinct(unique) rows = {base} unique
+
+### Creating and Adding new columns
+mutate(): Create(add) new columns.mutate() allows you to refer to columns that you’ve just created. = {base} transform   
+transmute(): Create(add) new columns. transmute() only keeps the new columns. = {base} transform
+
+### Summarise
+summarise(): Summarise values = {base} summary
+
+### Sampling
+sample_n(): Random sample rows for a fixed number = {base} sample  
+
+sample_frac(): Random sample rows for a fixed fraction = {base} sample
+
+We will use the dataset starwars to demonsrate dplyr package. 
+
+This dataset contains 87 characters and comes from the Star Wars API, and is documented in ?starwars.
+
+Note that starwars is a **tibble, a modern reimagining of the data frame.**
+->  https://tibble.tidyverse.org
+You can convert data frames to tibbles with as_tibble()
+
+```{r}
+library(dplyr)
+data(starwars)
+
+sw1 <- starwars
+# str(sw1)
+anyNA(sw1)
+# head(sw1)
+dim(sw1)
+```
+
+### Filter rows with filter()
+
+Subsetting rows
+
+```{r}
+temp <- filter(sw1, skin_color == "light", eye_color == "brown")
+temp <- filter(sw1, (skin_color == "light" | eye_color == "brown") & height >= 170)
+# == starwars[starwars$skin_color == "light" & starwars$eye_color == "brown", ]
+head(temp)
+```
+
+### Arrange rows with arrange()
+
+Reordering rows 
+
+```{r}
+temp <- arrange(sw1, height, desc(mass)) 
+# sorting key height(ascending), mass(descending)
+```
+
+Choose rows using their position with slice()
+
+```{r}
+temp <- slice(sw1, 5:10)
+temp <- slice_head(sw1, n = 3) # slice_tail()
+temp <- slice_sample(sw1, n = 5) # random sampling, record number
+temp <- slice_sample(sw1, prop = 0.1) # set proportion
+
+temp <- slice_sample(sw1, n = 10, replace = TRUE) # boot strapping
+temp <- slice_max(sw1, height, n = 3) 
+# 3 samples with max height, slice_min()
+```
+
+### Select columns with select()
+
+```{r}
+temp <- select(sw1, hair_color, skin_color, eye_color)
+temp <- select(sw1, hair_color:eye_color)
+temp <- select(sw1, !(hair_color:eye_color))
+temp <- select(sw1, ends_with("color")) 
+# Also,  starts_with(), ends_with(), matches() and contains()
+temp <- select(sw1, home_world = homeworld)
+```
+
+But because select() drops all the variables not explicitly mentioned, it’s not that useful. Instead, use rename():
+
+```{r}
+temp <- rename(sw1, home_world = homeworld)
+```
+
+### Add new columns with mutate()
+
+```{r}
+temp <- mutate(sw1, height_m = height / 100) # cm -> m conversion
+temp <- select(temp, height_m, height, everything()) 
+# everything(): matches all
+```
+
+dplyr::mutate() is similar to the base transform(), 
+but allows you to refer to columns that you’ve just created:
+
+```{r}
+temp <- mutate(
+    temp,
+    height_m = height / 100,
+    BMI = mass / (height_m^2)
+    )
+select(temp, BMI, everything())
+```
+
+If you only want to keep the new variables, use transmute():
+
+```{r}
+transmute(temp, 
+          height_m = height / 100,
+          BMI = mass / (height_m^2)
+          )
+```
+
+### Change column order with relocate()
+Use a similar syntax as select() to move blocks of columns at once
+
+```{r}
+temp <- relocate(sw1, sex:homeworld, .before = height) # .after
+```
+
+Summarise values with summarise()
+
+```{r}
+temp <- summarise(sw1, height = mean(height, na.rm = TRUE))
+```
+
+### Group rows with group_by() 
+
+Most data operations are done on groups defined by variables. 
+group_by() takes an existing tbl and converts it into a grouped tbl where operations are performed "by group". ungroup() removes grouping.
+
+```{r}
+a1 <- group_by(sw1, species, sex) # group by species and sex values 
+a2 <- select(a1, height, mass)
+a3 <- summarise(a2,
+  height = mean(height, na.rm = TRUE),
+  mass = mean(mass, na.rm = TRUE)
+)
+```
+
+### Commonalities
+
+he dplyr API is functional in the sense that function calls don’t have side-effects. 
+You must always save their results. 
+You either have to do it step-by-step:
+
+```{r}
+a1 <- group_by(sw1, species, sex)
+a2 <- select(a1, height, mass)
+a3 <- summarise(a2,
+                height = mean(height, na.rm = TRUE),
+                mass = mean(mass, na.rm = TRUE)
+                )
+```
+
+Or if you don’t want to name the intermediate results, you need to wrap the function calls inside each other:
+
+```{r}
+summarise(
+  select(
+    group_by(starwars, species, sex),
+    height, mass
+  ),
+  height = mean(height, na.rm = TRUE),
+  mass = mean(mass, na.rm = TRUE)
+)
+```
+
+### Using the pipe:
+
+dplyr provides the %>% operator (pipe) from magrittr. 
+x %>% f(y) turns into f(x, y)
+(reading the pipe operator as “then”)
+
+```{r}
+starwars %>%
+  group_by(species, sex) %>%
+  select(height, mass) %>%
+  summarise(
+    height = mean(height, na.rm = TRUE),
+    mass = mean(mass, na.rm = TRUE)
+  )
+```
+
+### rename() to rename columns
+### distinct() values of a variable 
+
+```{r}
+temp <- rename(sw1, male_female = sex)
+temp <- distinct(sw1, sex)
+temp <- distinct(sw1, sex, species)
+```
+
+### Sampling
+
+```{r}
+temp <- sample_n(sw1, 10)
+temp <- sample_n(sw1, 10, replace = TRUE) # bootstrapping
+
+# replace NA in height column with mean for height variable
+mean_height <- mean(sw1$height, na.rm = TRUE)
+sw1$height <- ifelse(is.na(sw1$height), mean_height, sw1$height)
+
+# sampling with probability
+temp <- sample_n(sw1, 10, weight = height, replace = TRUE) 
+
+# boot strapping 
+temp <- sample_frac(sw1, 1.0, replace = TRUE, weight = 1 / height)
+```
+
+### - End -

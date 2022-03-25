@@ -1,0 +1,291 @@
+---
+title: "Data Visualization"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+Summarized by SY Ohn
+
+# Creating graphs with base package
+
+### References
+
+R Base Graphics: An Idiot's Guide: 
+https://rstudio-pubs-static.s3.amazonaws.com/7953_4e3efd5b9415444ca065b1167862c349.html
+
+## plot() and lines() functions
+- plot(x, y, type = "p", lty = 1): 
+
+  Create the main R base plot frame.
+
+- lines(x, y, type = "l", lty = 1): 
+  Add lines onto the plot.
+
+- Key options:
+  - x, y: variables to be used for the x and y axes, respectively.
+  - type: display the data as line and/or point. 
+  - Lowed values: l (display line only), p (show point only) and b (show both).
+  - pch and cex: set points shape and size, respectively.
+  - lty, lwd: set line types and thickness.
+  - col: change the color of point and line.
+  - xlab and ylab: for x and y axis labels, respectively.
+
+#### Note: 
+
+The statements for one plot should be in one markdown cell.
+
+### Examples
+
+```{r}
+# 1. Create some variables
+x <- 1:10
+y1 <- x*x
+y2  <- 2*y1
+
+# 2. Plot a first line
+plot(x, y1, type = "b", frame = FALSE, pch = 19,
+     col = "red", xlab = "x", ylab = "y", 
+     lty = 1, lwd = 1)
+
+# 3. Add a second line
+lines(x, y2, pch = 18, col = "blue", type = "b", 
+      lty = 2, lwd = 1)
+
+# 4. Add a legend to the plot and set legend lty
+legend("topleft", legend = c("Line 1", "Line 2"),
+       col = c("red", "blue"), lty = 1:2, cex = 0.8)
+```
+
+## Opening a new window
+
+Use the following function in the console to open a new window(R graphics device) for plots.
+
+Function	    Platform
+
+windows()	   Windows
+
+X11()	       	Unix
+
+quartz()	   	Mac
+
+
+dev.off() to close the window
+
+If you don't open a window, the graphics goes to the Plots pane in R studio
+
+## Saving Graphs
+
+You can save the graph in a variety of formats from the menu in the graphics window.
+
+File -> Save As
+
+format: pdf, wmf, png, jpg, bmp, postscript
+
+## Matrix plots 
+
+```{r}
+data(iris)
+plot(iris)
+```
+
+## Other plots
+
+barplot(), hist(), boxplots()
+
+
+# Data Visualization with ggplot2
+### References: 
+R for Data Science: https://r4ds.had.co.nz/
+
+We will use ggplot2 systems for graphics. 
+
+```{r}
+library(tidyverse) # ggplot2 package included in tityverse package
+data(mpg)
+mpg
+m1 <- mpg
+```
+## Usage
+
+1. Start with ggplot(), which initializes a ggplot object, declare an input data frame for a graphic, specify the graphic attributes. Supply a dataset and aesthetic mapping (with aes()).   
+2. Then add on layers (like geom_point() or geom_histogram())
+
+
+## Histogram
+
+### Reference 
+http://www.sthda.com/english/wiki/ggplot2-histogram-plot-quick-start-guide-r-software-and-data-visualization
+
+### Simple histogram
+
+```{r}
+ggplot(m1, aes(x = cty)) + 
+# ggplot:
+# +: overlay
+geom_histogram(binwidth = 2) 
+# hitotogram, specify binwidth
+```
+
+### Adding colors 
+
+```{r}
+p1 <- ggplot(m1, aes(x = cty)) + 
+  geom_histogram(color="black", fill="orange")
+class(p1)
+p1
+```
+
+### Adding a vertical(mean) line
+
+```{r}
+p2 <- p1 + geom_vline(aes(xintercept = mean(cty)),
+                      color="blue", linetype="dashed", size=1)
+p2
+```
+
+## Density
+
+### Probability density function
+
+```{r}
+d <- density(m1$cty)
+str(d)
+plot(d) # base package
+```
+
+### Histogram with density plot
+
+```{r}
+ggplot(m1, aes(x = cty)) + 
+ geom_histogram(aes(y=..density..), colour="black", fill="gray")+
+ geom_density(alpha=.3, fill="#FF6666") # alpha
+```
+
+### Overlaid histogram
+
+We want to compare the cty mpg for Large(cyl > 4) and Small(cyl <= 4) cars
+
+```{r}
+library(dplyr)
+m1$Engine_size <- if_else(m1$cyl > 4, "Large", "Small")
+# two groups 4 and 5, 6, 8 cyl
+p = ggplot(m1, aes(x = cty, color = Engine_size, fill = Engine_size)) +
+  geom_histogram(alpha=0.5, position="identity")
+p
+```
+Overlaid histogram and density plot
+
+We want to compare the cty mpg for Large(cyl > 4) and Small(cyl <= 4) cars
+
+```{r}
+p <- ggplot(m1, aes(x = cty, color = Engine_size, fill = Engine_size)) +
+  geom_density(alpha=0.5, position="identity")
+p
+p + geom_vline(aes(xintercept = mean(cty)),
+            color="blue", linetype="dashed", size=1)
+```
+### Change the legend position
+
+```{r}
+p + theme(legend.position="top") # or bottom, left, right, none
+```
+
+
+## Scatter plots
+### References
+
+http://www.sthda.com/english/wiki/wiki.php?title=ggplot2-scatter-plots-quick-start-guide-r-software-and-data-visualization
+
+```{r}
+data(mtcars)
+mtcars$cyl <- as.factor(mtcars$cyl)
+mt1 <- as_tibble(mtcars)
+```
+
+### Basic scatter plots
+Use geom_point(size, color, shape) to draw points.
+```{r}
+library(ggplot2)
+# Basic scatter plot
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point()
+
+# Change the point size, and shape
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, shape = 23)
+
+# Change the point size by a variable 
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point(aes(size = qsec))
+```
+
+### Label points in the scatter plot
+The function geom_text() can be used :
+
+```{r}
+ggplot(mtcars, aes(x=wt, y=mpg)) +
+  geom_point() + 
+  geom_text(label=rownames(mtcars))
+```
+
+### Add regression lines
+
+The functions below can be used to add regression lines to a scatter plot :
+geom_smooth(), stat_smooth(), geom_abline()
+
+```{r}
+# Add the regression line
+ggplot(mtcars, aes(x=wt, y=mpg)) + 
+  geom_point()+
+  geom_smooth(method=lm)
+```
+
+## GGally package 
+
+```{r}
+library(GGally)
+ggpairs(iris, title="correlogram with ggpairs()") 
+```
+
+## Correlational coefficients
+Use cor()
+
+```{r}
+cor(iris[1:4])
+```
+
+We see that Petal.Length and Petal.Width are highly correlated from the matrix plot and cor values 
+
+## Box plots
+
+### Boxplot of MPG by Car Cylinders
+
+```{r}
+data(mtcars)
+boxplot(mpg~cyl,data=mtcars, main="Car Milage Data",
+   xlab="Number of Cylinders", ylab="Miles Per Gallon")
+```
+
+Note: outlier on 8 cyl bottom
+
+An outlier is an observation that is numerically distant from the rest of the data. When reviewing a boxplot, an outlier is defined as a data point that is located outside the fences (“whiskers”) of the boxplot (e.g: *** outside 1.5 times the interquartile range *** above the upper quartile and below the lower quartile). -> https://www.r-statistics.com/tag/boxplot-outlier/
+
+### ggplot2 box plot
+
+Reference
+
+http://www.sthda.com/english/wiki/ggplot2-box-plot-quick-start-guide-r-software-and-data-visualization
+
+```{r}
+ggplot(mtcars, aes(x =cyl, y=mpg, group = cyl)) + # object
+  geom_boxplot() + # box plot
+  ggtitle("mtcars: Cylinders vs Miles per gallon") +  
+# modify title, x , y label
+  xlab('Cylinders') +
+  ylab('Miles per gallon')
+```
+
+
+### - End -

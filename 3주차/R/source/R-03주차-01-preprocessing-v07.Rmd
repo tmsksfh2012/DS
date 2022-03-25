@@ -1,0 +1,129 @@
+---
+title: "Data preprocessing"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+# Data preprocessing
+Type conversion, One-hot encoding, Sampling, Standardization 
+
+## References 
+
+https://rpubs.com/Shrikanth/414336
+
+https://rfriend.tistory.com/515
+
+
+## Data
+
+We will use ToyotaCorolla.csv for an example data set.
+
+For the full description of toyota_corolla data set, 
+
+-> https://github.com/oniun/toyota_corolla_regression
+
+```{r}
+library(dplyr)
+tc_original <- read.csv("Data/ToyotaCorolla.csv")
+tc <- as_tibble(tc_original)
+head(tc)
+temp =lapply(tc, unique)
+lapply(temp, length)
+```
+
+## Type conversion
+
+### Numeric, character  to nominal type conversion 
+
+Select and convert the types of variables. 
+
+```{r}
+tc1 <- data.frame(Price = tc$Price, 
+                  Age = tc$Age, 
+                  KM = tc$KM, 
+                  FuelType = as.factor(tc$FuelType), 
+                  HP = tc$HP, 
+                  Metcolor = as.factor(tc$MetColor), 
+                  Automatic = as.factor(tc$Automatic), 
+                  CC = tc$CC, 
+                  Doors = as.factor(tc$Doors), 
+                  Weight = tc$Weight) 
+```
+
+### Binning
+
+Numerical to nominal conversion 
+
+We will convert numeric type Age into categoical Age_cat with 3 levels
+
+First, check the ranges of Age var.
+
+```{r}
+anyNA(tc1$Age)
+
+min(tc1$Age) 
+max(tc1$Age)
+```
+
+We will three categorical variables based on the values of Age variables. 
+
+cat_name: range of age
+
+old: >= 60
+
+medium: 20 =< . <60
+
+young: < 20
+
+```{r}
+tc1$Age_cat <- factor(1436, levels = c("old", "medium", "young"))
+
+tc1$Age_cat[tc1$Age >= 60] <- "old" 
+tc1$Age_cat[tc1$Age >= 20 & tc1$Age < 60] <- "medium"
+tc1$Age_cat[tc1$Age < 20] <- "young" 
+
+table(tc1$Age_cat)
+```
+
+### One-hot encoding
+
+Nominal type -> Binary 
+
+We will create 3 dummy binary variables with Age_cat
+
+```{r}
+tc1$Old <- tc1$Age_cat == "old"
+# or tc1$Old <- as.factor(tc1$Age_cat == "old") # logical factor
+# or tc1$Old <- as.integer(tc1$Age_cat == "old")  # 0, 1 binary
+
+tc1$Medium <- tc1$Age_cat == "medium"
+tc1$Young <- tc1$Age_cat == "young"
+
+sum(tc1$Old) + sum(tc1$Medium) + sum(tc1$Young) # check
+str(tc1)
+```
+
+## Standardization
+
+We will standardize KM  variable 
+
+```{r}
+KM_m <- mean(tc1$KM)
+KM_sd <- sd(tc1$KM)
+
+temp <- (tc1$KM - KM_m) / KM_sd
+```
+
+## Sampling
+
+Create 10 random samples.
+
+```{r}
+# sample() creates index vectors for samples 
+tc1[sample(1:nrow(tc1), 10, replace = TRUE), ] # with replacement
+tc1[sample(1:nrow(tc1), 10), ] # without replacement
+tc1[sample(1:nrow(tc1), 10, prob = tc1$Price), ] # sampling with  weight(probability)
+```
+
+### - End -

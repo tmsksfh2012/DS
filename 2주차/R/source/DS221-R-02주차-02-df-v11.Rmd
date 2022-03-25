@@ -1,0 +1,206 @@
+---
+title: "Reading and preprocessing data set"
+output:
+  html_document:
+    df_print: paged
+---
+
+By SY Ohn
+
+## Contents
+
+We will show how to 
+
+* read a data set from an Excel file into a data frame,
+* subset data frames,
+* manipluate data frames. 
+
+## Reading data set
+
+We will use Titanic dataset in an excel file-"titanic3.xls". 
+
+## Intall and load "readxl" package. 
+
+read_excel() is used to read an excel data. 
+
+```{r}
+options(repos = c(CRAN = "http://cran.rstudio.com")) # set a mirror site
+install.packages("readxl")
+```
+
+Load readxl package into my working space.
+
+```{r}
+library(readxl)
+```
+
+List the packages in my working space.
+
+```{r}
+search()
+```
+
+Read the data file into my working space
+
+```{r}
+getwd()
+# data file is in the Data subdirectory
+titanic_data = read_excel(path="./Data/titanic3.xls", sheet ="titanic3")
+```
+
+## Inspecting the dataset
+
+Check 
+
+* data types
+* missing values
+* etc.
+
+```{r}
+t1 = titanic_data # Get a copy. Keep the original
+str(t1) # structure
+head(t1) # show the first 6 rows
+tail(t1) # the last 6 rows
+
+```
+
+Please, test if each column is in the correct type. 
+
+```{r}
+sapply(t1, typeof)
+```
+
+The titanic data set describes the survival status of individual passengers on the Titanic. 
+
+Each row represents a passenger and each column represents an attribute of passengers. 
+
+Each column represents the attributes as in the following.
+
+* survival - Survival (0 = No; 1 = Yes)
+* pclass - Passenger Class (1 = 1st; 2 = 2nd; 3 = 3rd)
+* name - Name
+* sex - Sex
+* age - Age
+* sibsp - Number of Siblings/Spouses Aboard
+* parch - Number of Parents/Children Aboard
+* ticket - Ticket Number
+* fare - Passenger Fare
+* cabin - Cabin
+* embarked - Port of Embarkation (C = Cherbourg; Q = Queenstown; S = Southampton)
+* boat - Lifeboat (if survived)
+* body - Body number (if did not survive and body was recovered)
+
+Think what type should each attribute have. 
+
+## Selecting and changing the type of each column
+
+We will select columns and rearrange them.
+
+Also, we correct the type of the columns.
+
+```{r}
+t2 <- data.frame(name =t1$name,
+                 pclass = factor(t1$pclass, levels = c(1, 2, 3)),
+                 age = t1$age, 
+                 parch = as.integer(t1$parch), 
+                 sibsp = as.integer(t1$sibsp),
+                 sex = factor(t1$sex, levels = c("female", "male")),
+                 fare = t1$fare,
+                 survived = factor(t1$survived, levels = c(0, 1)))
+```
+
+Check the results.
+
+```{r}
+str(t2)
+```
+
+## Removing missing values
+
+Remove the row with NAs.
+
+```{r}
+row_na = apply(t2, 1, anyNA) 
+# NA is not change even though apply converts df into matrix
+t3 <- t2[!row_na, ]
+anyNA(t3)
+head(t3)
+```
+## Sampling records
+
+Choose some rows. 
+We will select the 100 youngest males and the 100 youngest female as follows.
+
+1. Split the passengers into male and female group.
+
+2. Sort each group with age as key.
+
+3. Select the first 100 rows from each group and put them in one table.
+
+```{r}
+tm <- t3[t3$sex == "male", ] # all male rows
+tf <- t3[t3$sex == "female",] # all female rows
+
+tm = tm[order(tm$age, -(tm$fare), tm$name),]  
+# order by age, fare, name in ascending, descending, ascending order.   
+tf = tf[order(tf$age, -tf$fare, tf$name),]  
+
+tm;tf # check
+t4 = rbind(tm[1:100,], tf[1:100,]) # merge two tables
+t4
+```
+
+order(key1, key2, ...,) returns the index vector ordered by key values.
+
+default is ascending order, and "-" represents descending order.
+
+sort(vector) function is used to sort a vector.
+
+## Operation between columns and adding a new column
+
+Add parch and sibsp column and append a new column to the data frame.
+
+Also, attach an ID number to each column 
+
+```{r}
+t5 <- data.frame(ID = 1:nrow(t4), t4, sum = t4$parch + t4$sibsp)
+t5 <- cbind(ID = 1:nrow(t4), t4, sum = t4$parch + t4$sibsp) # same result
+str(t5) # check
+```
+
+## Shuffling rows
+
+Shuffle the rows in the table
+sample() samples the elements from objects 
+```{r}
+sample(x = 1:10, size = 5) 
+# shuffle vector elements and return a sample with size elements.
+
+t6 = t5[sample(x = 1:nrow(t5)), ]
+head(t6)
+```
+## Operation with columns 
+
+1. Select only numeric-integer or double columns.
+
+2. Use the apply function to get the sum of each column 
+
+```{r}
+numeric_columns <- sapply(t6, is.numeric) # numeric: double or integer, 
+# note: correction
+t7 <- t6[,numeric_columns]
+apply(t7, 2, sum, na.rm = TRUE) 
+# The columns of t7 are all numeric! 
+# OK to use apply(). we can also use sapply()
+```
+## Quiz
+
+1. Why t6[,lapply(t6, is.numeric)] gives error in the following?
+
+Error in .subset(x, j) : 유효하지 않은 첨자의 타입 'list'입니다
+
+2. Why apply(t6, 2, is.numeric)  gives "character" types for all columns
+
+## Note:
+
+dplyr package is used to manipulate, subset, preprocess data frames

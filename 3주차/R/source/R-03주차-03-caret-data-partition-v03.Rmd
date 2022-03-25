@@ -1,0 +1,53 @@
+---
+title: "caret package: Partition training and test data sets"
+output:
+  html_document:
+    df_print: paged
+---
+## caret package: Partition training and test data sets
+Summarized by SY Ohn
+
+## References
+
+https://topepo.github.io/caret/
+https://data-make.tistory.com/78
+
+## Data
+
+We will use Titanic data set for examples.
+
+```{r}
+library(dplyr) 
+library(caret)
+data("Titanic")
+
+t1 <- Titanic %>% as_tibble # pipe 
+class(t1)
+anyNA(t1)
+t1
+```
+
+### Partition training and test data sets
+
+Uniform sampling on target variable 
+
+tr and ts sets will have the same distribution (ratios) of target classes as the original data set.  
+
+```{r}
+
+set.seed(55)
+t1$Survived <- factor(t1$Survived) # target variable, convert to factor
+# create index vectors for tr data set
+tr_rows <- createDataPartition(y = t1$Survived, p = 12 / 16, list = F)
+# y = target var, p = tr data ratio, list = F for row index
+
+tr_data <- t1[tr_rows,] # tr set
+ts_data <- t1[-tr_rows,] # ts set
+
+# check 
+table(t1$Survived) # distribution of the original set 
+table(tr_data$Survived) # distribution after partition
+table(ts_data$Survived)
+```
+
+### End
