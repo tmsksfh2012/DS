@@ -1,0 +1,252 @@
+library(caret)
+library(caretEnsemble)
+library(psych)
+library(rpart)
+library(ggplot2)
+library(rattle)
+library(rpart.plot)
+library(Hmisc)
+library(Amelia)
+library(GGally)
+library(MASS)
+library(klaR)
+library(mice)
+library(randomForest)
+library(tidyverse)
+library(nnet)
+library(kernlab)
+library(e1071)
+
+# 데이터 읽기
+data <- read.csv (
+  file = "coupon.csv",
+  header = TRUE
+)
+# 간단한 데이터 EDA
+str(data)
+describe(data)
+colSums(is.na(data))
+
+# 데이터 전처리
+Y<-factor(data$Y, levels = c(0, 1), labels = c("Not Used", "Used"))
+destination<-factor(data$destination, levels = c("Home", "No Urgent Place", "Work"))
+weather<-factor(data$weather, levels = c("Rainy", "Snowy", "Sunny"))
+temperature <- as.numeric(data$temperature) 
+age<- as.numeric(data$age)
+direction_opp<- as.numeric(data$direction_opp)
+
+data <- data.frame(Y, destination, weather, temperature, age, direction_opp)
+
+preProcValues = preProcess(data)
+data <- predict(preProcValues, data)
+
+missmap(data)
+
+#데이터 정규화
+preProcValues = preProcess(data)
+data <- predict(preProcValues, data)
+
+#층화 추출(tr:ts=7:3)
+set.seed(10)
+idx = createDataPartition(data$Y, p = .7, list = F)
+train_data <- data[idx, ]
+test_data <- data[-idx, ]
+
+prop.table(table(train_data$Y))*100
+prop.table(table(test_data$Y))*100
+
+#교차검증 10겹, 2회 반복
+control <- trainControl(method = "repeatedcv",
+                               number = 10,
+                               repeats = 2)
+
+#과적합이나 과소적합을 방지하기 위하여
+#weight decay 조절(10^-5 ~ 10^-1까지 비교하여 최적의 decay값 탐색)
+NNgrid<-expand.grid(size =1, decay=10**(-5:-1))
+
+#100번 반복하여 최적의 모델 생성
+NN_decay_model <- train(Y~.,
+                         data = train_data,
+                         method =  'nnet',
+                         maxit = 100,
+                         metric = 'Accuracy',
+                         trControl = control,
+                         tuneGrid=NNgrid)
+summary(NN_decay_model)
+NN_decay_model$result
+
+#decay에 따른 Accuracy 변화 그래프
+plot(c(1:5),
+     NN_decay_model$result$Accuracy,
+     xlab = "Decay",
+     ylab = "Accuracy",
+     main = "NNmodel by Decay",
+     type = 'o',
+     col = "green",
+     xaxt = 'n')
+axis(1, at=1:5,lab=c(NN_decay_model$result$decay))
+
+#최종 NN모델 생성
+NN_decay_model <- nnet(Y~.,
+                       data = train_data,
+                       size = 1,
+                       decay = NN_decay_model$finalModel$decay)
+
+pred <-predict(NN_decay_model,
+               test_data,
+               type = "class")
+
+confusionMatrix(table(test_data$Y, pred))
+
+#Epoch 조절하여 최적의 모델 탐색(25~150, 25간격)
+NN_epoch25_model <- train(Y~.,
+                           data = train_data,
+                           method =  'nnet',
+                           maxit = 100,
+                           metric = 'Accuracy',
+                           trControl = control,
+                           tuneGrid=NNgrid,
+                           epoch = 25)
+
+NN_epoch50_model <- train(Y~.,
+                           data = train_data,
+                           method =  'nnet',
+                           maxit = 100,
+                           metric = 'Accuracy',
+                           trControl = control,
+                           tuneGrid=NNgrid,
+                           epoch = 50)
+
+NN_epoch75_model <- train(Y~.,
+                           data = train_data,
+                           method =  'nnet',
+                           maxit = 100,
+                           metric = 'Accuracy',
+                           trControl = control,
+                           tuneGrid=NNgrid,
+                           epoch = 75)
+
+NN_epoch100_model <- train(Y~.,
+                           data = train_data,
+                           method =  'nnet',
+                           maxit = 100,
+                           metric = 'Accuracy',
+                           trControl = control,
+                           tuneGrid=NNgrid,
+                           epoch = 100)
+
+NN_epoch125_model <- train(Y~.,
+                           data = train_data,
+                           method =  'nnet',
+                           maxit = 100,
+                           metric = 'Accuracy',
+                           trControl = control,
+                           tuneGrid =NNgrid, 
+                           epoch = 125)#재학습
+
+NN_epoch150_model <- train(Y~.,
+                            data = train_data,
+                            method =  'nnet',
+                            maxit = 100,
+                            metric = 'Accuracy',
+                            trControl = control,
+                            tuneGrid=NNgrid,
+                            epoch = 150)
+
+pred1 <-predict(NN_epoch25_model, test_data)
+pred2 <-predict(NN_epoch50_model, test_data)
+pred3 <-predict(NN_epoch75_model, test_data)
+pred4 <-predict(NN_epoch100_model, test_data)
+pred5 <-predict(NN_epoch125_model, test_data)
+pred6 <-predict(NN_epoch150_model, test_data)
+
+confusionlist<-list(confusionMatrix(test_data$Y, pred1),
+                    confusionMatrix(test_data$Y, pred2),
+                    confusionMatrix(test_data$Y, pred3),
+                    confusionMatrix(test_data$Y, pred4),
+                    confusionMatrix(test_data$Y, pred5),
+                    confusionMatrix(test_data$Y, pred6))
+acclist<-data.frame(postResample(pred1, test_data$Y)[1], postResample(pred2, test_data$Y)[1],
+                    postResample(pred3, test_data$Y)[1], postResample(pred4, test_data$Y)[1],
+                    postResample(pred5, test_data$Y)[1], postResample(pred6, test_data$Y)[1])
+
+#epoch에 따른 Accuracy 그래프
+plot(c(1:6*25),
+     acclist,
+     xlab = "epoch",
+     ylab = "Accuracy",
+     main = "NNmodel by Epoch",
+     type = 'o',
+     col = "green")
+
+#Accuracy가 최대가 되는 모델 탐색
+for(i in 1:6){
+  if(acclist[i]==max(acclist)){
+    num<-i
+    break
+  }
+}
+num
+confusionlist[num] 
+#epoch가 50일 때 정확도 최대, 0.68
+
+#SVM 모델 - linear
+
+trControl <- trainControl(method='repeatedcv', number = 10, repeats = 2)
+
+svmLinear2_model <- train(Y ~.,
+              data = train_data,
+              method = 'svmLinear2',
+              metric = 'Accuracy',
+              trControl = trControl)
+
+predic <- predict(svmLinear2_model, newdata = test_data)
+confusionMatrix(predic, test_data$Y)
+
+#SVM 모델 - radial
+svmRadial_model <- train(Y~., 
+                          data = train_data, 
+                          method = 'svmRadial',
+                          metric = 'Accuracy',
+                          trControl = trControl)
+
+predic <- predict(svmRadial_model, newdata = test_data)
+confusionMatrix(predic, test_data$Y)
+
+#SVM 모델 - poly
+svmPoly_model <- train(Y~., 
+                        data = train_data,
+                        method = 'svmPoly',
+                        metric = 'Accuracy', 
+                        trControl = trControl)
+
+predic <- predict(svmPoly_model, newdata = test_data)
+confusionMatrix(predic, test_data$Y)
+
+#사전 가지치기 Pre-Pruning 모델 생성
+
+fullTree <- rpart(Y~., train_data, cp = -1) 
+
+fullpred <- predict(fullTree, test_data, type='class')
+fancyRpartPlot(fullTree)
+confusionMatrix(test_data$Y, fullPred, positive = 'Yes')
+
+preTree <- rpart(Y~., train_data, maxdepth = 4)
+prepred <- predict(preTree,  test_data, type='class')
+fancyRpartPlot(preTree)
+confusionMatrix(prepred, test_data$Y)
+
+#사전 가지치기 모델 예측 결과
+head(data.frame(test_data, prediction = prepred))
+
+#사후 가지치기 Post-Pruning 모델 생성
+plotcp(fullTree)
+printcp(fullTree)
+
+postTree <- prune(fullTree, cp = 0.0023)
+postpred <- predict(postTree, test_data, type = 'class')
+fancyRpartPlot(postTree)
+confusionMatrix(postpred, test_data$Y)
+
+#사후 가지치기 모델 예측 결과
+head(data.frame(test_data, prediction = postpred))

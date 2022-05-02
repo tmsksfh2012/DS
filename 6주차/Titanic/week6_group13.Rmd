@@ -1,0 +1,548 @@
+---
+title: "Untitled"
+author: "2018124010_권대원"
+date: '2022-04-09'
+output: html_document
+---
+```{r}
+library(readxl)
+library(tidyverse)
+library(ggthemes)
+library(corrplot)
+library(klaR)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+library(ggplot2)
+library(gmodels)
+library(vcd)
+library(dplyr)
+library(caret)
+library(e1071)
+library(moments)
+library(rcompanion)
+```
+
+```{r}
+#타이타닉 데이터
+tit <- read_excel("titanic3.xls")
+str(tit)
+
+head(tit)
+tail(tit)
+
+# 결측치 확인
+colSums(is.na(tit))
+sum(tit$boat == "")
+sum(tit$cabin == "")
+sum(tit$home.dest == "")
+sum(tit$embarked == "")
+#결측치가 적은 속성은 해당 행만 제거
+tit <- tit[!(tit$embarked == ""), ]
+
+# 결측치 많은 열 제거 (body, age, boat, cabin, home)
+# 필요 없는 열 제거 (name, ticket)
+# factor로 바꿀 것 바꾸기
+tit1 <- data.frame(pclass = as.factor(tit$pclass),
+                   sex = as.factor(tit$sex),
+                   age = tit$age,
+                   sibsp = as.factor(tit$sibsp),
+                   parch = as.factor(tit$parch),
+                   fare = tit$fare,
+                   embarked = as.factor(tit$embarked),
+                   survived = as.factor(tit$survived))
+str(tit1)
+
+colSums(is.na(tit1))
+#결측치 있는 줄 삭제
+tit1 <- na.omit(tit1)
+colSums(is.na(tit1))
+
+#명목형 : pclass, sex, sibsp, parch, embarked
+#수치형 : fare, age
+```
+
+```{r}
+#시각화
+
+#Survival
+ggplot(tit1, aes(x = survived, fill = survived)) + geom_bar(position = 'dodge') + scale_x_discrete() + labs(title = 'Survival', x = 'Outcome', y = 'Count') + scale_fill_discrete(name = 'Outcome', labels = c('Died', 'Survived')) + theme(legend.position = 'right') + theme_classic()
+
+#Sex
+ggplot(tit1, aes(x = sex, fill = survived)) +
+  geom_bar(position = 'dodge') +
+  scale_x_discrete() +
+  labs(title = "Gender", x = "Gender", y = "Count") +
+  scale_fill_discrete(name = "Outcome", labels = c("Died", "Survived")) +
+  theme(legend.position = "right") +
+  theme_classic()
+
+#Passenger Class
+ggplot(tit1, aes(x = pclass, fill = survived)) +
+  geom_bar(position = "dodge") +
+  scale_x_discrete() +
+  labs(title = "passenger Class", x = "Passenger Class", y = "Count") +
+  scale_fill_discrete(name = "Outcome", labels = c("Died", "Survived")) +
+  theme(legend.position = "right") +
+  theme_classic()
+
+# Embarkment 
+ggplot(tit1, aes(x = embarked, fill = survived)) +
+  geom_bar(position = "dodge") +
+  theme(legend.position = "right") +
+  labs(title = "embarked", x = "embarked", y = "Count") +
+  scale_fill_discrete(name = "Outcome", labels = c("Died", "Survived")) +
+  theme_classic()
+
+# Age 
+ggplot(tit1) +
+  geom_freqpoly(aes(x = age, color = survived), binwidth = 1) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  labs(title = "Survival by Age", x = "Age", y = "Count")
+
+ggplot(tit1) +
+  geom_freqpoly(aes( x = fare, color = survived), binwidth = 0.05) +
+  scale_x_log10() +
+  theme_classic() +
+  theme(legend.position = "none") +
+  labs(title = "Survival by Fare(log10)", x = "Fare(log10)", y ="Count")
+
+```
+
+```{r}
+# 목표변수 확률 확인 (die:live = 6:4)
+prop.table(table(tit1$survived))
+
+# 두 변수간의 독립성 검증
+#명목형끼리 먼저 검증
+
+# CrossTable 을 이용해 카이제곱과 p-value 구함
+# 일반적인 속성간의 독립
+#pclass와 나머지
+CrossTable(tit1$pclass, tit1$sex, chisq = T) # 0.00003
+CrossTable(tit1$pclass, tit1$sibsp, chisq = T) # 0.000000000295228
+CrossTable(tit1$pclass, tit1$parch, chisq = T) # 0.3416652 >= 0.05
+CrossTable(tit1$pclass, tit1$embarked, chisq = T) # 4.203973e-36
+CrossTable(tit1$pclass, tit1$survived, chisq = T) # 0.00000000000000000000001331643
+
+#sex와 나머지
+CrossTable(tit1$sex, tit1$sibsp, chisq = T) # 0.000002660125
+CrossTable(tit1$sex, tit1$parch, chisq = T) # 0.0000000000106058
+CrossTable(tit1$sex, tit1$embarked, chisq = T) # 0.001027591
+CrossTable(tit1$sex, tit1$survived, chisq = T) # 3.25954e-67
+
+#sibsp와 나머지
+CrossTable(tit1$sibsp, tit1$parch, chisq = T) # 2.601709e-47
+CrossTable(tit1$sibsp, tit1$embarked, chisq = T) # 1.401446e-05
+CrossTable(tit1$sibsp, tit1$survived, chisq = T) # 1.974442e-05
+
+#parch
+CrossTable(tit1$parch, tit1$embarked, chisq = T) # 0.03235104
+CrossTable(tit1$parch, tit1$survived, chisq = T) # 8.013926e-09
+#embarked
+CrossTable(tit1$embarked, tit1$survived, chisq = T) # 3.242171e-12
+
+# 나머지는 다 매우 작은 값 -> 가설 기각, 종속임
+# pclass-parch만 독립적임
+
+#cramerV를 이용한 독립성 검증
+# 0~1사이 값 클수록 강한 연관성
+#pclass와 나머지
+cramerV(xtabs(~ pclass + sex, data = tit1)) #0.1413
+cramerV(xtabs(~ pclass + sibsp, data = tit1))#0.1834
+cramerV(xtabs(~ pclass + parch, data = tit1) + 1.0e-16)#NaN 0.0801
+cramerV(xtabs(~ pclass + embarked, data = tit1))#0.287
+cramerV(xtabs(~ pclass + survived, data = tit1))#0.3178
+
+#sex와 나머지
+cramerV(xtabs(~ sex + sibsp, data = tit1)) #0.186 
+cramerV(xtabs(~ sex + parch, data = tit1) + 1.0e-16) #NaN 0.2459
+cramerV(xtabs(~ sex + embarked, data = tit1)) #0.1149
+cramerV(xtabs(~ sex + survived, data = tit1)) #0.5363
+
+#sibsp
+cramerV(xtabs(~ sibsp + parch, data = tit1) + 1.0e-16) #NaN 0.2262
+cramerV(xtabs(~ sibsp + embarked, data = tit1))# 0.1456
+cramerV(xtabs(~ sibsp + survived, data = tit1))# 0.174
+
+#parch
+cramerV(xtabs(~ parch + embarked, data = tit1) + 1.0e-16)#NaN 0.1038
+cramerV(xtabs(~ parch + survived, data = tit1) + 1.0e-16)#NaN 0.2164
+
+#embarked
+cramerV(xtabs(~ embarked + survived, data = tit1))#0.2252
+
+# p-value와 같은 결과
+# pclass-parch만 독립적 나머지는 다 종속임
+#########################################################
+
+# 이제 클래스 내 독립성 판단.
+# 클래스 기준으로 분류
+live <- tit1[tit1$survived == 1, ]
+die <- tit1[tit1$survived == 0, ]
+
+#live의 경우 (카이)
+#pclass와 나머지
+CrossTable(live$pclass, live$sex, chisq = T) #0.0001
+CrossTable(live$pclass, live$sibsp, chisq = T) #0.0149
+CrossTable(live$pclass, live$parch, chisq = T) #0.1420 >= 0.05
+CrossTable(live$pclass, live$embarked, chisq = T)
+
+#sex와 나머지
+CrossTable(live$sex, live$sibsp, chisq = T) #0.2889 >= 0.05
+CrossTable(live$sex, live$parch, chisq = T)#0.2131 >= 0.05
+CrossTable(live$sex, live$embarked, chisq = T) #0.4078 >= 0.05
+
+#sibsp와 나머지
+CrossTable(live$sibsp, live$parch, chisq = T)
+CrossTable(live$sibsp, live$embarked, chisq = T) #0.3402 >= 0.05
+
+#parch
+CrossTable(live$parch, live$embarked, chisq = T) #0.3392 >= 0.05
+
+# live내 독립: pclass-parch, sex-sibsp,parch,embarked,  
+# sibsp-embarked,parch-embarked
+# 나머지 종속
+#-----------------------------------------------------------
+#die의 경우
+#pclass와 나머지
+CrossTable(die$pclass, die$sex, chisq = T) 
+CrossTable(die$pclass, die$sibsp, chisq = T) #0.0002
+CrossTable(die$pclass, die$parch, chisq = T) #0.1799 >= 0.05
+CrossTable(die$pclass, die$embarked, chisq = T) 
+
+#sex와 나머지
+CrossTable(die$sex, die$sibsp, chisq = T) #0.0007
+CrossTable(die$sex, die$parch, chisq = T)
+CrossTable(die$sex, die$embarked, chisq = T) #0.0010
+
+#sibsp와 나머지
+CrossTable(die$sibsp, die$parch, chisq = T) 
+CrossTable(die$sibsp, die$embarked, chisq = T) #0.0013
+
+#parch
+CrossTable(die$parch, die$embarked, chisq = T) #0.1857 >= 0.05
+
+#die클래스 내 독립
+# pclass-parch, parch-embarked
+# 나머지 종속
+#############################################################
+
+# 크래머로 클래스 내 독립 확인
+# 0~1사이 값 클수록 강한 연관성
+#live
+#pclass와 나머지
+cramerV(xtabs(~ pclass + sex, data = live)) #0.2079
+cramerV(xtabs(~ pclass + sibsp, data = live) + 1.0e-16)#NaN 0.1495
+cramerV(xtabs(~ pclass + parch, data = live) + 1.0e-16)#NaN 0.1317
+cramerV(xtabs(~ pclass + embarked, data = live)) # 0.2749
+
+#sex와 나머지
+cramerV(xtabs(~ sex + sibsp, data = live) + 1.0e-16) #NaN 0.1083
+cramerV(xtabs(~ sex + parch, data = live) + 1.0e-16) #NaN 0.1293
+cramerV(xtabs(~ sex + embarked, data = live)) #0.06496
+
+#sibsp
+cramerV(xtabs(~ sibsp + parch, data = live) + 1.0e-16) #NaN 0.196
+cramerV(xtabs(~ sibsp + embarked, data = live) + 1.0e-16)#NaN 0.103
+
+#parch
+cramerV(xtabs(~ parch + embarked, data = live) + 1.0e-16)#NaN 0.115
+
+# live내 독립성 : sex-embarked
+# 보류 : sex-sibsp, sibsp-embarked
+# 나머지 종속
+# NaN 값이 나온 것은 0이 많으면 이런다고 한다.
+# 아주 작은 값을 더해서 계산이 가능해졌다. (1의 -8승)
+#--------------------------------------------------------------
+
+#die의 경우
+#pclass와 나머지
+cramerV(xtabs(~ pclass + sex, data = die)) #0.2078
+cramerV(xtabs(~ pclass + sibsp, data = die))#0.1731
+cramerV(xtabs(~ pclass + parch, data = die) +1.0e-16)#NaN 0.1147
+cramerV(xtabs(~ pclass + embarked, data = die))#0.2514
+
+#sex와 나머지
+cramerV(xtabs(~ sex + sibsp, data = die)) #0.1933
+cramerV(xtabs(~ sex + parch, data = die)+1.0e-16) #NaN 0.2628
+cramerV(xtabs(~ sex + embarked, data = die)) #0.1488
+
+#sibsp
+cramerV(xtabs(~ sibsp + parch, data = die)+1.0e-16) #NaN 0.3061
+cramerV(xtabs(~ sibsp + embarked, data = die))#0.1616
+
+#parch
+cramerV(xtabs(~ parch + embarked, data = die)+1.0e-8)#NaN 0.1142
+
+# 모두 종속적인 편
+# 보류 : pclass-parch, parch-embarked
+
+######################################################################
+
+```
+
+```{r}
+# 베이지안 공식과 나이브 베이지안 공식 이용해 확률 계산
+#P(y == die) = 약 0.5925
+yrate <- prop.table(table(tit1$survived))
+yrate[1] # die 비율 P(Y = 0)
+yrate[2] # live 비율 P(Y = 1)
+
+# 독립성이 큰 쌍 : parch-embarked를 이용
+# 그냥 베이즈 정리 이용한 계산
+big_son <- CrossTable(die$parch, die$embarked) #P(X|Y = 0)
+big_mom <- CrossTable(tit1$parch, tit1$embarked) #P(X)
+big_prob <- (big_son$prop.tbl * yrate[1]) / (big_mom$prop.tbl + 1.0e-16)
+big_prob # P(Y|X) 값들 표 (x가 저거일때 죽었을 확률)
+# 분모가 0이면 계산이 안돼서 매우 작은 값을 더해서 계산
+
+bls <- CrossTable(live$parch, live$embarked) #P(X|Y = 1)
+blp <- (bls$prop.tbl * yrate[2]) / (big_mom$prop.tbl[1:6,] + 1.0e-16)
+blp # P(Y|X) 값들 표 (x가 저거일때 살았을 확률)
+# y가 live일때와 합치면 각 확률이 1이 나온다. 분모 0인 곳은 제외
+
+#-------------------------------------------------------------
+
+# 독립성이 작은 쌍 (sex-embarked)
+small_son <- CrossTable(die$sex, die$embarked) #P(X|Y = 0)
+small_mom <- CrossTable(tit1$sex, tit1$embarked) #P(X)
+small_prob  <- (small_son$prop.tbl * yrate[1]) / (small_mom$prop.tbl)
+small_prob # P(Y|X) 값들 표 (x가 저거일때 죽었을 확률)
+
+sls <- CrossTable(live$sex, live$embarked) #P(X|Y = 1)
+slp <- (sls$prop.tbl * yrate[2]) / (small_mom$prop.tbl)
+slp # P(Y|X) 값들 표 (x가 저거일때 살았을 확률)
+
+#---------------------------------------------------------
+# 나이브 베이지안은 각 속성을 클래스 내에서 독립으로 가정
+# 독립적인 쌍(parch-embarked)
+# y일때 x값들을 곱해주면 된다.
+pd <- prop.table(table(die$parch)) # P(X = parch | Y = die)
+ed <- prop.table(table(die$embarked)) # P(X = embarked | Y = die)
+pd
+ed
+big_naive_son <- (pd %o% ed) * yrate[1] #외적하면 각 확률의 곱이 나온다.
+# 거기에 P(Y=0)을 곱해줌
+big_naive_son
+big_mom$prop.tbl #분모는 똑같다.
+ori <- proportions(xtabs(~parch + embarked, data = tit1))
+#표 크기 달라져서 이거 사용
+big_naive_prob <- big_naive_son / (ori)
+big_naive_prob
+big_prob
+# 차이가 많이 나는 것도 있고 무한대도 나온다.
+
+# 이번엔 y = 1인경우
+pl <- prop.table(table(live$parch)) # P(X = parch | Y = live)
+el <- prop.table(table(live$embarked)) # P(X = embarked | Y = live)
+pl
+el
+big_naive_son_l <- (pl %o% el) * yrate[2] #외적하면 각 확률의 곱이 나온다.
+# 거기에 P(Y=1)을 곱해줌
+big_naive_prob_l <- big_naive_son_l / (ori)
+big_naive_prob_l
+blp
+# 비교하면 비슷한 것도 있고 아닌 것도 있다.
+
+#---------------------------------------------------------
+#독립성이 작은 쌍(pclass-sex)
+#die
+pcd <- prop.table(table(die$pclass)) # P(X = parch | Y = die)
+sexd <- prop.table(table(die$sex)) # P(X = embarked | Y = die)
+pcd
+sexd
+small_naive_son <- (pcd %o% sexd) * yrate[1] #외적하면 각 확률의 곱이 나온다.
+# 거기에 P(Y=0)을 곱해줌
+small_naive_son
+pcsex <- proportions(xtabs(~pclass + sex, data = tit1))
+small_naive_prob <- small_naive_son / (pcsex)
+small_naive_prob
+# live
+pcl <- prop.table(table(live$pclass)) # P(X = parch | Y = live)
+sexl <- prop.table(table(live$sex)) # P(X = embarked | Y = live)
+pcl
+sexl
+small_naive_son_l <- (pcl %o% sexl) * yrate[2] #외적하면 각 확률의 곱이 나온다.
+# 거기에 P(Y=0)을 곱해줌
+small_naive_son_l
+small_naive_prob_l <- small_naive_son_l / (pcsex)
+small_naive_prob_l
+
+#---------------------------------------------------------
+#pclass-sex도 베이지안을 이용해서 구해보자
+ps_son <- CrossTable(die$pclass, die$sex) #P(X|Y = 0)
+ps_mom <- CrossTable(tit1$pclass, tit1$sex) #P(X)
+ps_prob <- (ps_son$prop.tbl * yrate[1]) / (ps_mom$prop.tbl)
+ps_prob # P(Y|X) 값들 표 (x가 저거일때 죽었을 확률)
+
+ps_son_l <- CrossTable(live$pclass, live$sex) #P(X|Y = live)
+ps_prob_l <- (ps_son_l$prop.tbl * yrate[2]) / (ps_mom$prop.tbl)
+ps_prob_l # P(Y|X) 값들 표 (x가 저거일때 살았을 확률)
+
+# 지금까지 베이지안 룰과 나이브 베이지안을 이용해 확률을 계산해보았다.
+# pclass-sex의 경우모든 값이 나오지만 독립이라는 가정 때문에
+# 나온 값에 차이가 있다.
+```
+```{r}
+#수치 - 명목
+#정규분포는 t-test, anova를 이용한다.
+#shapiro.test.로 정규성 검정
+shapiro.test(live$age)
+shapiro.test(die$age)
+shapiro.test(live$fare)
+shapiro.test(die$fare)
+# 둘 다 p값이 작아서 정규분포를 따르지 않는다.
+```
+
+```{r}
+# 정규분포를 따르지 않아서 t-test, anova가 아닌 비모수적 검정 필요
+# Wilcoxon rank-sum test 실시
+# factor 2개여야 사용 가능
+wilcox.test(fare~sex, data = tit1) #매우 작다
+wilcox.test(fare~survived, data = tit1) #매우작다
+
+wilcox.test(age~sex, data = tit1) #0.1611
+wilcox.test(age~survived, data = tit1)#0.03521
+# age-sex만 독립적이다.
+
+# factor가 3개 이상은 kruskal.test 이용
+kruskal.test(fare~pclass, data = tit1)#매우 작다
+kruskal.test(fare~sibsp, data = tit1)#매우 작다
+kruskal.test(fare~parch, data = tit1)#매우 작다
+kruskal.test(fare~embarked, data = tit1)#매우 작다
+kruskal.test(fare~survived, data = tit1)#매우 작다
+#모두 종속적이다.
+
+kruskal.test(age~pclass, data = tit1)#매우 작다
+kruskal.test(age~sibsp, data = tit1)#매우 작다
+kruskal.test(age~parch, data = tit1)#매우 작다
+kruskal.test(age~embarked, data = tit1)#0.01981
+kruskal.test(age~survived, data = tit1)#0.1611
+#age-survived만 독립, 나머지 종속
+```
+
+```{r}
+###히스토그램을 통해 확률밀도함수와 유사한지 알아보기 위함
+###age가 유사하지만 shapiro로 테스트 한 결과 아님
+
+#히스토그램 그리기
+# fare
+ggplot(tit1) + geom_density(mapping = aes(x = fare, colour = survived))
+#age
+ggplot(tit1) + geom_density(mapping = aes(x = age, colour = survived))
+
+ggplot(tit1, aes(fare)) + geom_histogram(aes(y = ..density..), binwidth = 2,
+                                         colour = "red") +
+    stat_function(fun = dnorm, args = list(mean = mean(tit1$fare), sd = sd(tit1$fare)))
+
+ggplot(tit1, aes(age)) + geom_histogram(aes(y = ..density..), binwidth = 2,
+                                        colour = "red") +
+    stat_function(fun = dnorm, args = list(mean = mean(tit1$age), sd = sd(tit1$age)))
+
+mean(tit1$age)
+sd(tit1$age)
+
+no_adult <- subset(tit1, age <10)
+no_adult
+table(no_adult$survived)
+prop.table(table(no_adult$survived))
+# age는 쓸만한데 fare는 좀 그런듯
+
+```
+
+
+
+
+```{r}
+set.seed(100)
+# 나이브 베이지안 모델 생성
+indexes <- createDataPartition(tit1$survived,
+                               times = 1,
+                               p = 0.6,
+                               list = F)
+train.data <- tit1[indexes, ]
+test.data <- tit1[-indexes, ]
+
+x <- train.data[, -8]
+y <- train.data$survived
+
+model <- train(x, y, 'nb', trControl = trainControl(method = 'cv', number = 10))
+model
+
+model_pred <- predict(model, test.data)
+confusionMatrix(model_pred, test.data$survived)
+```
+
+```{r}
+# 변수의 중요도 표시 sibsp는 필요 없는듯
+varImp(model)
+```
+
+```{r}
+#laplace = 1 : 둘중 한쪽에 나오지 않는 속성은 빼고 하겠다.
+naive <- naiveBayes(survived~., data = train.data, laplace = 1)
+naive
+test_prob_result <- predict(naive, test.data, type = "raw")
+test_class_result <- predict(naive, test.data)
+test_result <- data.frame(actual = test.data$survived, 
+                          predicted = test_class_result,
+                          pred_prob = test_prob_result)
+head(test_result, 10)
+
+train_pred_class <- predict(naive, train.data)
+confusionMatrix(train_pred_class, train.data$survived)
+confusionMatrix(test_class_result, test.data$survived)
+```
+
+```{r}
+rtree_train <- rpart(survived~.,
+                     data = train.data,
+                     cp=-1)
+print(rtree_train)
+rpart.plot(rtree_train)
+printcp(rtree_train)
+pred = predict(rtree_train, test.data, type = "class",)
+confusionMatrix(test.data$survived, pred)
+plotcp(rtree_train) #prune (cp=0.0117647)
+```
+
+```{r}
+#가지치기
+ptree<-prune(rtree_train, cp = 0.0117647)
+rpart.plot(ptree)
+pred_post =  predict(ptree, test.data, type = "class",)
+confusionMatrix(test.data$survived, pred_post)
+printcp(ptree)
+#정확도 : 80.1
+```
+```{r}
+#파라미터 최적화
+search_grid <- expand.grid(
+    usekernel = c(T, F),
+    fL = seq(0, 2, 0.5),
+    adjust = seq(0, 2, 0.5)
+)
+```
+
+```{r}
+# pca는 warning이 너무 많이 떠서 뺌
+nb.m2 <- train(
+    x = x, y = y, method = 'nb',
+    trControl = trainControl(method = 'cv', number = 10),
+    tuneGrid = search_grid,
+    preProc = c("BoxCox", "center", "scale")
+)
+
+nb.m2$results %>%
+    top_n(5, wt = Accuracy) %>%
+    arrange(desc(Accuracy))
+
+plot(nb.m2)
+confusionMatrix(nb.m2)
+
+m2_pred <- predict(nb.m2, test.data)
+confusionMatrix(m2_pred, test.data$survived)
+# 특이도가 매우 낮다
+```

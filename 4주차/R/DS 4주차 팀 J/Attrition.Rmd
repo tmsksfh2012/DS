@@ -1,0 +1,221 @@
+---
+title: "attrition"
+output: html_document
+date: '2022-03-26'
+---
+
+# attrition data 불러오기
+```{r}
+data = read.csv("Attrition.csv", header = T)
+names(data)[1] = c("Age")
+```
+
+## R Markdown
+# test data set 만들고 chr 데이터를 수치형으로 바꾸기
+
+## 각 속성별 상관계수 구하기
+# cor(Cbdata[,c(1:4)], use = "all.obs", method = "pearson") # cor 함수: 피어슨 상관계수 구해주는 함수
+```{r}
+## Load dataset
+data$Attrition <- as.integer(data$Attrition == "Yes")
+data$Gender <-as.integer(data$Gender == "Male")
+customSort <- function(data_mat){
+  for(i in 1:length(data_mat)) {
+    if(data_mat[i] == "Travel_Rarely") {
+      data_mat[i] = 1
+    }
+    else if (data_mat[i] == "Travel_Frequently") {
+      data_mat[i] = 2
+    }
+    else if (data_mat[i] =="Non-Travel") {
+      data_mat[i] = 0
+    }
+  }
+  return(data_mat)
+}
+data$BusinessTravel <- as.integer(customSort(data$BusinessTravel))
+customSort <- function(data_mat){
+  for(i in 1:length(data_mat)) {
+    if(data_mat[i] == "Sales") {
+      data_mat[i] = 0
+    }
+    else if (data_mat[i] == "Research & Development") {
+      data_mat[i] = 1
+    }
+    else if (data_mat[i] =="Human Resources") {
+      data_mat[i] = 2
+    }
+  }
+  return(data_mat)
+}
+data$Department <- as.integer(customSort(data$Department))
+customSort <- function(data_mat){
+  for(i in 1:length(data_mat)) {
+    if(data_mat[i] == "Life Sciences") {
+      data_mat[i] = 0
+    }
+    else if (data_mat[i] == "Medical") {
+      data_mat[i] = 1
+    }
+    else if (data_mat[i] =="Human Resources") {
+      data_mat[i] = 2
+    }
+    else if (data_mat[i] =="Marketing") {
+      data_mat[i] = 3
+    }
+    else if (data_mat[i] =="Technical Degree") {
+      data_mat[i] = 4
+    }
+    else if (data_mat[i] =="Other") {
+      data_mat[i] = 5
+    }
+  }
+  return(data_mat)
+}
+data$EducationField <- as.integer(customSort(data$EducationField))
+customSort <- function(data_mat){
+  for(i in 1:length(data_mat)) {
+    if(data_mat[i] == "Healthcare Representative") {
+      data_mat[i] = 0
+    }
+    else if (data_mat[i] == "Human Resources") {
+      data_mat[i] = 1
+    }
+    else if (data_mat[i] =="Laboratory Technician") {
+      data_mat[i] = 2
+    }
+    else if (data_mat[i] =="Manager") {
+      data_mat[i] = 3
+    }
+    else if (data_mat[i] =="Manufacturing Director") {
+      data_mat[i] = 4
+    }
+    else if (data_mat[i] =="Research Director") {
+      data_mat[i] = 5
+    }
+    else if (data_mat[i] =="Research Scientist") {
+      data_mat[i] = 6
+    }
+    else if (data_mat[i] =="Sales Executive") {
+      data_mat[i] = 7
+    }
+    else if (data_mat[i] =="Sales Representative") {
+      data_mat[i] = 8
+    }
+  }
+  return(data_mat)
+}
+data$JobRole <- as.integer(customSort(data$JobRole))
+customSort <- function(data_mat){
+  for(i in 1:length(data_mat)) {
+    if(data_mat[i] == "Divorced") {
+      data_mat[i] = 0
+    }
+    else if (data_mat[i] == "Married") {
+      data_mat[i] = 1
+    }
+    else if (data_mat[i] =="Single") {
+      data_mat[i] = 2
+    }
+  }
+  return(data_mat)
+}
+data$MaritalStatus <- as.integer(customSort(data$MaritalStatus))
+data$OverTime <- as.integer(data$OverTime == "Yes")
+data$Over18 <- as.integer(data$Over18 == "Y")
+# 상관계수 구하기. 단 standard hours는 모든 값이 80이라 표준편차가 0이라서 상관계수가 NA가 나온다.
+res <- cor(data[, c(1:ncol(data))], use = "all.obs", method = "pearson")
+# attrition과 상관계수가 높은 것을 구하되, 그 속성들끼리의 상관계수 또한 고려한다.
+## Overall correlation coefficient of each gender (남녀 전체 상관계수)
+# cor(data$Height, data$Weight, method = 'pearson') # 상관계수 (공분산의 표준화)
+
+# res는 상관계수를 저장하는 변수.
+```
+# 예측변수를 Attrition과 상관계수가 높은 4개로 한정
+# Overtime, MaritalStatus, TotalWorkingYears, YearsInCurrentRole를 예측변수로
+
+# 예측변수를 한정한 full-tree 만들기
+```{r}
+#install.packages('rattle')
+library(caret)
+library(rpart)
+library(ggplot2)
+library(rattle)
+## Load dataset
+data1 <- read.csv("attrition.csv")
+names(data1)[1] = c("Age")
+## Partitioning
+set.seed(1000)
+idx <- createDataPartition(y = data1$Attrition, p = 0.7, list = FALSE)
+training <- data1[idx, ]
+testing <- data1[-idx, ]
+## Train model
+fit <- rpart(Attrition~OverTime + MaritalStatus + TotalWorkingYears + YearsInCurrentRole, training)
+#fit <- rpart(Attrition~OverTime + MaritalStatus + TotalWorkingYears + YearsInCurrentRole, parms = list(split = 'information'), minsplit = 90, minbucket = 30, training)
+
+val_var <- predict(fit, newdata=testing, type='class') # apply the model to the test dataset
+ttesting <- as.factor(testing$Attrition)
+vval_var <- as.factor(val_var)
+cm <- confusionMatrix(ttesting, vval_var, positive = 'Yes')
+tree <- fancyRpartPlot(fit, type=2, box.palette = "auto")
+print(tree)
+print(cm) # print overview of confusion matrix
+```
+
+# 예측변수를 Attrition과 상관계수가 높은 4개로 한정
+# Overtime, MaritalStatus, TotalWorkingYears, YearsInCurrentRole를 예측변수로
+
+# 예측변수를 한정한 prunned-tree 만들기
+
+```{r}
+#install.packages('rattle')
+library(caret)
+library(rpart)
+library(ggplot2)
+library(rattle)
+## Load dataset
+data <- read.csv("attrition.csv")
+names(data)[1] = c("Age")
+## Partitioning
+set.seed(1000)
+idx <- createDataPartition(y = data$Attrition, p = 0.7, list = FALSE)
+training <- data[idx, ]
+testing <- data[-idx, ]
+## Train model
+fit <- rpart(Attrition~OverTime + MaritalStatus + TotalWorkingYears + YearsInCurrentRole, minsplit = 90, minbucket = 30, training)
+#fit <- rpart(Attrition~OverTime + MaritalStatus + TotalWorkingYears + YearsInCurrentRole, parms = list(split = 'information'), minsplit = 90, minbucket = 30, training)
+
+val_var <- predict(fit, newdata=testing, type='class') # apply the model to the test dataset
+ttesting <- as.factor(testing$Attrition)
+vval_var <- as.factor(val_var)
+cm <- confusionMatrix(ttesting, vval_var, positive = 'Yes')
+tree <- fancyRpartPlot(fit, type=2, box.palette = "auto")
+print(tree)
+print(cm) # print overview of confusion matrix
+```
+
+# 최적 파라미터를 이용한 learning curve 그리기
+```{r}
+data3 <- data.frame(
+    Attrition = as.factor(data$Attrition),
+    OverTime = as.factor(data$OverTime),
+    MaritalStatus = as.factor(data$MaritalStatus),
+    TotalWorkingYears = data$TotalWorkingYears,
+    YearsInCurrentRole = as.factor(data$YearsInCurrentRole)
+    )
+
+ctrl <- trainControl(classProbs = TRUE, summaryFunction = twoClassSummary)
+
+lda_data <- learning_curve_dat(
+    dat = data3,
+    outcome = "Attrition",
+    test_prop = 1/4,
+    method = "rpart",
+    metric = "ROC",
+    trControl = ctrl, control = rpart.control(minsplit = 90, minbucket = 30, parms=list(split = 'information')))
+
+lda_data <- lda_data[!(lda_data$Data == "Resampling"),] # exclude resampling data from learning curve data
+p <- ggplot(lda_data, aes(x = Training_Size, y = ROC, color = Data)) + geom_smooth(method = loess, span = .8) + theme_bw()
+
+print(p)
+```
