@@ -1,0 +1,89 @@
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(ggplot2)
+library(rattle)
+library(pROC)
+
+data <- read.csv("./vehicles.csv")
+
+# 데이터 전처리
+data <- data[names(data)[1:24]]
+
+str(data)
+
+data <- data.frame(lapply(data, as.character), stringsAsFactors=FALSE)
+data <- data.frame(lapply(data, as.numeric))
+data[is.na(data)] <- 0
+data$cylinders <- ifelse(data$cylinders == 6, 1,0)
+
+
+set.seed(1234)
+data <- data[sample(nrow(data)),]
+
+split <- floor(nrow(data)/3)
+
+ensembleData <- data[0:split,]
+blenderData <- data[(split+1):(split*2),]
+testingData <- data[(split*2+1):nrow(data),]
+
+labelName <- 'cylinders'
+predictors <- names(ensembleData)[names(ensembleData) != labelName]
+
+myControl <- trainControl(method='cv', number=3, returnResamp='none')
+
+# quick benchmark model 
+test_model <- train(blenderData[,predictors], blenderData[,labelName], method='gbm', trControl=myControl)
+preds <- predict(object=test_model, testingData[,predictors])
+
+auc <- roc(testingData[,labelName], preds)
+print(auc$auc)
+
+model_gbm <- train(ensembleData[,predictors], ensembleData[,labelName], method='gbm', trControl=myControl)
+model_rpart<- train(ensembleData[,predictors], ensembleData[,labelName], method='rpart', trControl=myControl)
+model_nnet <- train(ensembleData[,predictors], ensembleData[,labelName], method='nnet', trControl=myControl)
+model_treebag <- train(ensembleData[,predictors], ensembleData[,labelName], method='treebag', trControl=myControl)
+
+
+
+blenderData$gbm_PROB <- predict(object=model_gbm, blenderData[,predictors])
+testingData$gbm_PROB <- predict(object=model_gbm, testingData[,predictors])
+
+blenderData$rf_PROB <- predict(object=model_rpart, blenderData[,predictors])
+testingData$rf_PROB <- predict(object=model_rpart, testingData[,predictors])
+
+blenderData$nnet_PROB <- predict(object=model_nnet, blenderData[,predictors])
+testingData$nnet_PROB <- predict(object=model_nnet, testingData[,predictors])
+
+blenderData$treebag_PROB <- predict(object=model_treebag, blenderData[,predictors])
+testingData$treebag_PROB <- predict(object=model_treebag, testingData[,predictors])
+
+# see how each individual model performed on its own
+auc <- roc(testingData[,labelName], testingData$gbm_PROB )
+print(auc$auc) 
+# Area under the curve: 0.9888
+
+auc <- roc(testingData[,labelName], testingData$rf_PROB )
+print(auc$auc)
+# Area under the curve: 0.9569
+
+auc <- roc(testingData[,labelName], testingData$nnet_PROB )
+print(auc$auc)
+# Area under the curve: 0.7181
+
+auc <- roc(testingData[,labelName], testingData$treebag_PROB )
+print(auc$auc)
+# Area under the curve: 0.9697
+
+
+# run a final model to blend all the probabilities together
+predictors <- names(blenderData)[names(blenderData) != labelName]
+final_blender_model <- train(blenderData[,predictors], blenderData[,labelName], method='gbm', trControl=myControl)
+
+# See final prediction and AUC of blended ensemble
+preds <- predict(object=final_blender_model, testingData[,predictors])
+auc <- roc(testingData[,labelName], preds)
+print(auc$auc)
+# Area under the curve: 0.9917
+
